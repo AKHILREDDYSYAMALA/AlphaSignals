@@ -16,10 +16,12 @@ MEMORY_FILE = "seen_news.txt"
 
 class AlphaSignal(BaseModel):
     event: str = Field(description="The main macro event or news headline")
+    trade_type: str = Field(description="Categorize as: 'Earnings Swing', 'Structural Trend', or 'Hidden Monopoly'")
+    time_horizon: str = Field(description="E.g., '1-3 Months', '1-2 Years', or '3-5+ Years'")
     industries_affected: list[str] = Field(description="List of directly impacted industries")
     supply_chain_impact: list[str] = Field(description="Critical components or services required")
     beneficiary_companies: list[str] = Field(description="Specific listed ancillary or supplier companies in India")
-    reasoning: str = Field(description="Second-order thinking explaining why these specific companies benefit")
+    reasoning: str = Field(description="Explain the logic. If it is an Earnings Swing, explain how this news hits their next quarterly report.")
     confidence_level: str = Field(description="High, Medium, or Low")
 
 client = genai.Client()
@@ -60,8 +62,11 @@ def analyze_news(news_text: str):
     Your edge is finding hidden supply-chain monopolies and ancillary plays.
     
     Analyze the following news. 
-    1. If the news is generic (e.g., "Nifty falls 100 points"), set confidence_level to "Low" and leave companies blank.
-    2. If the news contains specific sectoral capex, government policy, or infrastructure expansion, find the "picks and shovels" micro/small cap suppliers.
+    1. If the news is generic noise, set confidence_level to "Low" and leave companies blank.
+    2. If actionable, classify the 'trade_type' and 'time_horizon':
+       - "Earnings Swing" (1-3 Months): A supplier who will see a revenue bump in the next quarter due to this news.
+       - "Structural Trend" (1-2 Years): A company providing picks-and-shovels to a growing sector.
+       - "Hidden Monopoly" (3-5+ Years): A micro/small-cap with a deep moat, patents, or sole-supplier status.
     
     News Context:
     {news_text}
@@ -88,6 +93,8 @@ def send_telegram_alert(data: dict):
 
 📰 *The Catalyst:* {data['event']}
 
+⏱️ *Play Type:* {data['trade_type']} ({data['time_horizon']})
+
 ⚙️ *Supply Chain Impact:* {', '.join(data['supply_chain_impact'][:3])}
 
 💎 *Hidden Beneficiaries:* *{', '.join(data['beneficiary_companies'])}*
@@ -98,7 +105,10 @@ def send_telegram_alert(data: dict):
     """
 
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    requests.post(url, json={"chat_id": chat_id, "text": message, "parse_mode": "Markdown"})
+    response = requests.post(url, json={"chat_id": chat_id, "text": message, "parse_mode": "Markdown"})
+    
+    if response.status_code != 200:
+        print(f"❌ Failed to send Telegram alert: {response.text}")
 
 # --- MAIN AUTOMATION LOOP ---
 if __name__ == "__main__":
